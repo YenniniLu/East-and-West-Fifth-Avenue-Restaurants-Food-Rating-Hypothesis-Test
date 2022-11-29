@@ -1,0 +1,138 @@
+---
+title: "Hypothesis Test with The Bootstrap"
+author: "Xinyi Lu"
+date: "3/1/2022"
+output: html_document
+---
+
+# Topic: Hypothesis Test with The Bootstrap
+##Data set from surveys of customers of 168 Italian restaurants in New York City.
+##The variables are:
+## Price = the price (in $ US) of dinner (including 1 drink and tip)
+## Food = customer rating of the food (out of 30)
+## Decor = customer rating of the decor (out of 30)
+## Service = customer rating of the service (out of 30)
+## East = dummy variable, 1 (0) if the restaurant is east (west) of Fifth Avenue
+
+
+## Project Question:
+## Claim: Restaurants on East Fifth Avenue have higher food ratings than those on the west side.
+
+$H_0: Food_{East} = Food_{West}$
+
+$H_1: Food_{East} > Food_{West}$
+
+
+
+```{r}
+# loading package
+library(tidyverse)
+library(dplyr)
+```
+
+```{r}
+# read cvs from Prof.Fox's github data set
+nyc <- read.csv("https://ericwfox.github.io/data/nyc.csv")
+str(nyc)
+```
+```{r}
+#data wrangling
+East <- nyc %>% filter(East == 1) %>% dplyr::select(Food)
+West <- nyc %>% filter(East == 0) %>% dplyr::select(Food)
+```
+
+```{r}
+str(East)
+```
+
+## Note: East and West are data frame
+
+```{r}
+length(East$Food)
+length(West$Food)
+```
+
+```{r}
+hist(West$Food)
+```
+
+```{r}
+hist(East$Food)
+
+```
+
+## Applied Permutation Test and Hypothesis Test to restaurant dataset on East and West restaurants’ food rating means
+
+
+```{r}
+t.test(East$Food, West$Food, alternative = "greater", var.equal = TRUE)
+```
+## p-value = 0.009651 < alpha, when alpha = 0.05 
+
+
+
+```{r}
+# Permutation Test 
+obv.mean <- mean(East$Food) - mean(West$Food)
+obv.mean
+```
+
+```{r}
+comb <- c(East$Food,West$Food)
+diff.means <- numeric()
+
+set.seed(234)
+for (i in 1:5000) {
+  means <- sample(comb, 168, replace = FALSE)
+  diff.means[i] <- mean(means[1:106]) - mean(means[107:168])
+}
+```
+
+```{r}
+hist(diff.means)
+```
+
+```{r}
+length(diff.means[ diff.means >= obv.mean]) / 5000
+```
+
+
+```{r}
+# HT
+# comb <- c(East$Food,West$Food)
+# obv.mean <- mean(East$Food) - mean(West$Food) = 0.7388923
+set.seed(345)
+boot_sample <- matrix(sample(comb, 168 *10000, replace = TRUE), nrow = 10000)
+
+#use apply() to return a vector
+# boot_sample is a matrix
+# margin 1: selecting by row
+diff_means <- apply(boot_sample, 1, 
+                    function(x){mean(x[1:106]) - mean(x[107:168])})
+# ASL hat _ boot = number of mean difference 
+length(diff_means[diff_means>= obv.mean])/10000
+
+```
+
+```{r}
+# HT with studentized statistics
+stud.t <- function(x){
+  num <- mean(x[1:106]) - mean(x[107:168])
+  pool.var <- (var(x[1:106])*105 + var(x[107:168])*61)/166
+  denominator <- sqrt(pool.var*(1/106 + 1/62))
+  return(num/denominator)
+}
+
+obv.stud.t <- stud.t(comb)
+
+new.t <- apply(boot_sample, 1, stud.t)
+
+length(new.t[new.t>= obv.stud.t])/10000
+```
+
+
+
+```{r}
+boxplot(Food ~ East, data = nyc, ylab = "Food rating", xlab = "East (1 = East of Fifth Avenue")
+```
+
